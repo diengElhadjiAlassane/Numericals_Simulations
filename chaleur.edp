@@ -1,0 +1,110 @@
+////////////////////////////////////
+//                                //
+// Equation de la chaleur         //
+// (visualisation par xd3d)       //
+//                                //
+// Ecole Polytechnique, MAP 431   //
+// Copyright G. Allaire, 2003     //
+//                                //
+////////////////////////////////////
+// Prefixe du fichier de sauvegarde 
+// des figures postscript
+string sauve="chaleur";
+/////////////////////////////////////
+real mu=1.;
+real dt=0.5 ;
+real tt ;
+real residu ;
+string legende ;
+string fichier ;
+string fichier2 ;
+string fichier3 ;
+int iter=1 ;
+int niter=10 ;
+/////////////////////////////////////
+// isovaleurs des figures
+real[int] vviso(11);
+real[int] arrperso(11) ;
+for (int i=0;i<11;i++)
+vviso[i]=(0.25*i) ;
+arrperso = vviso ;
+/////////////////////////////
+// Définition du domaine   //
+/////////////////////////////
+real pi=4*atan(1) ;
+//  bord inférieur 
+border a1(t=0,10) { x=t; y=0;label=1; };
+// bord droit 
+border a2(t=0,3)  { x=10; y=t;label=1;}; 
+// bord supérieur courbe
+border a3(t=0,0.5*pi) { x=10-8*sin(t); y=5-2*cos(t);label=1; };
+// bord supérieur
+border a4(t=2,0) { x=t; y=5;label=1; };
+//  bord gauche 
+border a5(t=5,0)  { x=0; y=t;label=1; };
+// support du terme source
+border a6(t=2*pi,0) { x=2.5-0.5*sin(t) ; y =2.5-0.5*cos(t); label=2; }
+//////////////////////////////
+// construction du maillage //
+//////////////////////////////
+int n=3 ;
+mesh Sh;
+//
+Sh= buildmesh (a1(10*n)+a2(3*n)+a3(8*n)+a4(2*n)+a5(5*n)+a6(6*n));
+//
+plot(Sh,wait=1); 
+fichier2=sauve+".msh";
+savemesh(Sh,fichier2);
+//////////////////////////////
+//Définition de l'espace P1 //
+//////////////////////////////
+fespace Vh1(Sh,P1);
+Vh1 u,v,f,u0;
+///////////////////////////////////
+// Definition du terme source et //
+// de la donnee initiale         //
+///////////////////////////////////
+func source=10*((x-2.5)*(x-2.5)+(y-2.5)*(y-2.5)<0.25);
+func initdata=0 ;
+f= source ;
+u0= initdata ;
+real volume=int2d(Sh)(1.) ;
+////////////////////////////////////////
+// Définition du système à résoudre   //
+// schéma d'Euler implicite en temps  //
+////////////////////////////////////////
+problem chaleur(u,v) = 
+        int2d(Sh)( dt*mu*(dx(u)*dx(v)+dy(u)*dy(v)) + u*v )
+       -int2d(Sh)( dt*f*v+u0*v )
+       +on(1,u=0)
+;
+/////////////////////////////////////////////
+// Boucle en temps                         //
+/////////////////////////////////////////////
+for (iter=1;iter< niter+1;iter=iter+1)  
+{
+
+chaleur ;
+
+residu = int2d(Sh)((u-u0)*(u-u0)) ;
+residu = sqrt(residu/volume)/dt ;
+
+cout << "residu =" << residu << " au temps t =" << tt << endl ;
+
+tt=iter*dt ;
+legende="concentration au temps t="+tt;
+plot(Sh,u,fill=1,wait=1,value=true,viso=vviso,varrow=arrperso,cmm=legende); 
+//plot(u,wait=1,value=true,viso=vviso,varrow=arrperso,cmm=legende,ps=sauve+"-"+iter+".eps"); 
+fichier=sauve+iter;
+fichier3=fichier+".bb";
+{ ofstream file(fichier+".bb");
+	file << u[].n << " \n";
+	int j;
+	for (j=0;j<u[].n ; j++)  
+	file << u[][j] << endl;  }  	
+//exec("xd3d -bord=3 -hidden -fich="+fichier3+" -iso=1 -table=8 -vmax=2.5 "+sauve);
+
+u0=u ;
+
+};
+
