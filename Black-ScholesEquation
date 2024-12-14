@@ -1,0 +1,79 @@
+import math
+import numpy as np
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
+from matplotlib import cm
+from scipy.stats import norm
+# Paramètres
+strike = 0.5
+maturity = 1.0
+risk_free_rate = 0.05
+volatility = 0.2
+stockMax = 1
+Ms = 20
+Nt = 20
+dt = maturity / float(Nt)
+dx = stockMax / float(Ms)
+def coef_a(i):
+    return 0.5 * i * i * dt * (volatility**2) + 0.5 * i * dt * risk_free_rate
+def coef_b(i):
+    return 1 - i * i * dt * (volatility**2) - dt * risk_free_rate
+def coef_c(i):
+    return 0.5 * i * i * dt * (volatility**2) - 0.5 * i * dt * risk_free_rate
+# formule 16 + 15 + 14
+def black_scholes(S, K, T, r, sigma):
+    S = np.maximum(S, 1e-10)
+    d1 = (np.log(S / K) + (r + 0.5 * sigma ** 2) * T) / (sigma * np.sqrt(T))
+    d2 = d1 - sigma * np.sqrt(T)
+    return np.maximum(S * norm.cdf(d1) - K * np.exp(-r * T) * norm.cdf(d2), 0)
+def compute_explicite():
+    previous = np.zeros(Ms)
+    xvalues = np.zeros(Ms)
+    for x in range(Ms):
+        xvalues[x] = x * dx
+        previous[x] = max(xvalues[x] - strike, 0)
+    result = np.zeros(Ms)
+    output1, output2, output3 = [], [], []
+    prev_t = 0
+    for ti in range(Nt):
+      curt_t = prev_t + dt
+        result[0] = 0
+        result[Ms-1] = (xvalues[Ms-1] - strike) * math.exp(-risk_free_rate * dt * (maturity - prev_t))
+        for xi in range(1, Ms-1):
+            result[xi] = coef_a(xi) * previous[xi+1] + coef_b(xi) * previous[xi] + coef_c(xi) * previous[xi-1]
+        #result[Ms-1] = result[Ms-2]
+        for xi in range(Ms):
+            output1.append(xvalues[xi])
+            output2.append(prev_t)
+            output3.append(result[xi])
+        prev_t = curt_t
+        previous = result.copy()
+    exact_solution = black_scholes(xvalues, strike, maturity, risk_free_rate, volatility)
+    plot_option_comparison(xvalues, result, exact_solution)
+    plot_surface(output1, output2, output3)
+def plot_option_comparison(x_values, approx_values, exact_values):
+    fig, ax = plt.subplots(figsize=(10, 6))
+    ax.plot(x_values, approx_values, label='Approximation')
+    ax.plot(x_values, exact_values, label='Solution exacte', linestyle='--')
+    ax.set_xlabel('Prix de l\'action')
+    ax.set_ylabel('Prix de l\'option')
+    ax.set_title('Comparaison: Modèle Difference Finis vs Solution exacte de Black-Scholes')
+    ax.legend()
+    ax.set_xlim(0, stockMax)
+    ax.set_ylim(0, max(np.max(approx_values), np.max(exact_values)) * 1.1)
+    plt.grid(True)
+    plt.show()
+def plot_surface(output1, output2, output3):
+    X = np.reshape(output1, (Ms, Nt))
+    Y = np.reshape(output2, (Ms, Nt))
+    Z = np.reshape(output3, (Ms, Nt))
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+    #surf = ax.plot_surface(X, Y, Z, rstride=1, cstride=1, cmap=cm.YlGnBu_r)
+    surf = ax.plot_surface(X, Y, Z, rstride=1, cstride=1, cmap=cm.coolwarm)
+    ax.set_zlim3d(0, 1.0)
+    ax.set_xlabel(r'$S$')
+    ax.set_ylabel(r'$T-t$')
+    ax.set_zlabel(r'$C(S,t)$')
+    fig.colorbar(surf, shrink=0.5, aspect=5)
+    plt.show()
